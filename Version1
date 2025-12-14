@@ -1,0 +1,579 @@
+#Import Libraries
+import sqlite3
+import tkinter as tk
+from tkinter import ttk
+from tkinter import messagebox
+from tkinter import font
+import re
+import bcrypt
+import time
+from datetime import datetime, date, timedelta
+
+conn = sqlite3.connect('studytracker.db')
+cursor = conn.cursor()
+#Define Account Table
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS users (
+    userid INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL,
+    email TEXT UNIQUE NOT NULL,
+    role TEXT CHECK(role IN ('student', 'teacher')) NOT NULL,
+    failed_attempts INTEGER DEFAULT 0,
+    streak INT DEFAULT 0,
+    last_login TEXT NOT NULL,
+    xp INT DEFAULT 0
+)
+''')
+
+#Create Main Tkinter Gui
+class Windows(tk.Tk):
+    #Define base layer
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.title("BrainStead")
+        self._currentUser = None
+        window_width = 600
+        window_height = 800
+
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+       
+        x = int((screen_width - window_width) / 2)
+        y = int((screen_height - window_height) / 2)
+
+        self.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        self.configure(bg = "#B4E5A2")
+       
+        container = tk.Frame(self)
+        container.pack(side="top", fill="both", expand=True)
+        container.grid_rowconfigure(0, weight=1)
+        container.grid_columnconfigure(0, weight=1)
+
+        #Dictionary containing all the apps pages
+        self.frames = {}
+        for x in (LoginPage,SignUpPage,HomePage,QuizPage,CreateQuiz):
+            pageName = x.__name__
+            frame = x(container, self)
+            self.frames[pageName] = frame
+            frame.grid(row=0, column=0, sticky="nsew")
+
+
+        self.PageSwitch("LoginPage")
+    #Switch Pages
+    def PageSwitch(self, Page):
+        if Page != "LoginPage" and Page != "SignUpPage":
+                self.frames[Page].update_user_info()
+        frame = self.frames[Page]
+        frame.tkraise()
+   
+#Login Page
+class LoginPage(tk.Frame):
+    #Define and set parent + Controller paremeters
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
+
+        self._usernameVar = tk.StringVar()
+        self._passwordVar = tk.StringVar()
+
+        welcome = tk.Label(self, text="Welcome to BrainStead!", font=("Helvetica", 22), bg = "#B4E5A2")
+        welcome.pack(pady=20)
+
+        login = tk.Label(self, text = "Login:", font=("Helvetica", 12, "underline"), bg = "#B4E5A2")
+        login.place(x=40, y = 100)
+       
+        username = tk.Label(self, text = "Username:", font=("Helvetica", 12), bg = "#B4E5A2")
+        username.place(x=40, y = 160)
+
+        userEntry = tk.Entry(self, textvariable = self._usernameVar)
+        userEntry.place(x = 40, y = 190)
+
+        password = tk.Label(self, text = "Password:", font=("Helvetica", 12), bg = "#B4E5A2")
+        password.place(x=40, y = 220)
+
+        passEntry = tk.Entry(self, textvariable = self._passwordVar, show = "*")
+        passEntry.place(x = 40, y = 250)
+
+        loginButton = tk.Button(self, text = "Login", command = lambda: VerifyLogin())
+        loginButton.place(x=40, y=300)
+       
+        signUpButton = tk.Button(self, text = "Don't have an account? Sign Up!", command = lambda: controller.PageSwitch("SignUpPage"))
+        signUpButton.place(x=40, y = 340)
+
+        user = self._usernameVar.get()
+        passw = self._passwordVar.get()
+
+        def VerifyLogin():
+            user = self._usernameVar.get()
+            passw = self._passwordVar.get()
+
+           
+            cursor.execute("SELECT password FROM users WHERE username = ?", (user,))
+            hashpassw = cursor.fetchone()
+            try:
+                result = hashpassw[0]
+                if result:
+                    passwbyte = passw.encode('utf-8')
+                    hashpasswbyte = result.encode('utf-8')
+
+                    if bcrypt.checkpw(passwbyte, hashpasswbyte):
+                        user_data = cursor.execute("SELECT * FROM users WHERE username = ?", (user,)).fetchone()
+                        controller._currentUser = {
+                            "userid": user_data[0],
+                            "username": user_data[1],
+                            "email": user_data[3],
+                            "role": user_data[4],
+                            "streak": user_data[6],
+                            "lastLogin": user_data[7],
+                            "xp": user_data[8]
+                            } #Save user details so they can be used in the app pages
+                        controller.frames["HomePage"].update_user_info()
+                        controller.PageSwitch("HomePage")
+            except Exception as e:
+                invalidUserorPass = tk.Label(self, text = "Invalid Username or Password.", font=("Helvetica", 12), bg = "#B4E5A2", fg="red")
+                invalidUserorPass.place(x=40, y=275)
+                userEntry.delete(0, 'end')
+                passEntry.delete(0, 'end')
+                print(e)
+
+
+class SignUpPage(tk.Frame):
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
+
+        self._usernameVar = tk.StringVar()
+        self._passwordVar = tk.StringVar()
+        self._emailVar = tk.StringVar()
+       
+        signUp = tk.Label(self, text = "Sign Up:", font=("Helvetica", 12, "underline"), bg = "#B4E5A2")
+        signUp.place(x=40, y = 100)
+
+        email = tk.Label(self, text = "Email:", font=("Helvetica", 12), bg = "#B4E5A2")
+        email.place(x=40, y = 140)
+
+        emailEntry = tk.Entry(self, textvariable = self._emailVar)
+        emailEntry.place(x = 40, y = 170)
+       
+        username = tk.Label(self, text = "Username:", font=("Helvetica", 12), bg = "#B4E5A2")
+        username.place(x=40, y = 210)
+
+        userEntry = tk.Entry(self, textvariable = self._usernameVar)
+        userEntry.place(x = 40, y = 240)
+
+        password = tk.Label(self, text = "Password:", font=("Helvetica", 12), bg = "#B4E5A2")
+        password.place(x=40, y = 280)
+
+        passEntry = tk.Entry(self, textvariable = self._passwordVar, show = "*")
+        passEntry.place(x = 40, y = 310)
+
+        signUpButton = tk.Button(self, text = "Create Account", command = lambda: takeDetails())
+        signUpButton.place(x = 40,y = 440)
+
+        def takeDetails():
+            user = self._usernameVar.get()
+            passw = self._passwordVar.get()
+            userEmail = self._emailVar.get()
+
+            validUser = False
+            validEmail = False
+            validPass = False
+
+            try:
+                cursor.execute("SELECT username FROM users WHERE username = ?", (user,)) #test if user exists
+                existingUser = cursor.fetchone()
+                if existingUser:
+                    usernameExists = tk.Label(self, text="Username taken.", fg="red", font=("Helvetica", 10), bg = "#B4E5A2")
+                    usernameExists.place(x = 40, y =260)
+                elif len(user) > 16 or len(user) < 8: #Length Check
+                    tooLongError = tk.Label(self, text="Invalid Username.", fg="red", font=("Helvetica", 10), bg = "#B4E5A2")
+                    tooLongError.place(x=40, y=260)
+                else:
+                    validUser = True
+                   
+            except: #Exception Handling
+                nullError = tk.Label(self, text="Wrong type or empty username inputted.", fg="red", font=("Helvetica", 10), bg = "#B4E5A2")
+                nullError.place(x=40, y=260)
+
+            cursor.execute("SELECT email FROM users WHERE email = ?", (userEmail,)) #Parametrised SQL Query
+            existingEmail = cursor.fetchone()
+            emailPattern = r"\w+@\w+\.\w+" #Use of RegEx
+            if not bool(re.fullmatch(emailPattern, userEmail)):
+                invalidPattern = tk.Label(self, text="Invalid Email.", fg="red", font=("Helvetica", 10), bg = "#B4E5A2")
+                invalidPattern.place(x=40,y=190)
+            elif existingEmail:
+                invalidPattern.Destroy()
+                emailExists = tk.Label(self, text="Email Taken. Please provide a different one.", fg="red", font=("Helvetica", 10), bg = "#B4E5A2")
+                existingEmail.place(x=40,y=190)
+            else:
+                validEmail = True
+           
+            symbol = False
+            capital = False
+            tooWeak = tk.Label(self, text="Password is too weak.", fg="red", font=("Helvetica", 10), bg = "#B4E5A2")
+            for x in passw:
+                if x in "!£$%^&*()@#?/1234567890":
+                    symbol = True
+                elif x.isupper():
+                    capital = True
+                   
+            if len(passw) < 8 or symbol == False or capital == False:
+                tooWeak.place(x=40, y=330)    
+            else:
+                validPass = True
+
+            if validUser and validEmail and validPass:
+                try:
+                    password_bytes = passw.encode('utf-8')
+                    salt = bcrypt.gensalt()
+                    hashed_password = bcrypt.hashpw(password_bytes, salt)
+                    currentDate = (date.today() - timedelta(days=1)).isoformat()
+                   
+                    cursor.execute('''
+                        INSERT INTO users (username, password, email, role, last_login)
+                        VALUES (?, ?, ?, ?,?)
+                    ''', (user, hashed_password.decode('utf-8'), userEmail, 'student', currentDate))
+                   
+                    conn.commit()
+                    successLabel = tk.Label(self, text="Account created successfully!\nReturning you to Login Page...", fg="green", font=("Helvetica", 10), bg="#B4E5A2")
+                    successLabel.place(x=40, y=460)
+                    controller.PageSwitch("LoginPage")
+                   
+                except Exception as e:
+                    print(e)
+            return user, passw, userEmail
+
+
+class AppFeatures(tk.Frame):
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
+
+        self.xpperlevel = 1000
+
+        self.streakNum = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.streakNum.place(x=70, y=35)
+
+        self.welcome = tk.Label(self,text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.welcome.place(x=180,y=70)
+
+        self.xpbar = ttk.Progressbar(self, orient = "horizontal", mode="determinate", maximum = 100)
+        self.xpbar.place(x=440,y=40)
+
+        self.style = ttk.Style()
+        self.style.theme_use('default')
+        self.style.configure(
+            "XP.Horizontal.TProgressbar",
+            troughcolor="#B4E5A2",
+            background="#000000",
+            bordercolor="#000000",
+            thickness=15
+            )
+        self.xpbar.configure(style="XP.Horizontal.TProgressbar")
+
+        self.level = tk.Label(self,text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.level.place(x=420,y=35)
+
+        self.streakIcon = tk.Label(self, 
+                                   bg="#B4E5A2")
+        self.streakIcon.place(x=10, y=20)
+
+        self.home = tk.Button(self,
+                              bg="#B4E5A2",
+                              bd=0,
+                              activebackground="#B4E5A2",
+                              activeforeground="#B4E5A2",
+                              highlightthickness=0,
+                              command = lambda: controller.PageSwitch("HomePage"))                      
+        self.home.place(x=20, y=670)
+
+        self.quiz = tk.Button(self,
+                              bg="#B4E5A2",
+                              bd=0,
+                              activebackground="#B4E5A2",
+                              activeforeground="#B4E5A2",
+                              highlightthickness=0,
+                              command = lambda: controller.PageSwitch("QuizPage"))
+        self.quiz.place(x=160,y=670)
+
+        self.assignment = tk.Button(self,
+                              bg="#B4E5A2",
+                              bd=0,
+                              activebackground="#B4E5A2",
+                              activeforeground="#B4E5A2",
+                              highlightthickness=0)
+        self.assignment.place(x=300,y=670)
+
+        self.statistics = tk.Button(self,
+                              bg="#B4E5A2",
+                              bd=0,
+                              activebackground="#B4E5A2",
+                              activeforeground="#B4E5A2",
+                              highlightthickness=0)
+        self.statistics.place(x=440,y=670)
+
+    def update_user_info(self):
+        user = self.controller._currentUser
+
+        if user is None:
+            return
+
+        if user["lastLogin"] == (date.today() - timedelta(days=1)).isoformat():
+            user["streak"] += 1
+            cursor.execute(
+            "UPDATE users SET streak = ?, last_login = ? WHERE userid = ?",
+            (user["streak"], date.today().isoformat(), user["userid"])
+            )
+            conn.commit()
+        elif user["lastLogin"] <= (date.today() - timedelta(days=1)).isoformat():
+            user["streak"] = 1
+            cursor.execute(
+            "UPDATE users SET streak = ?, last_login = ? WHERE userid = ?",
+            (user["streak"], date.today().isoformat(), user["userid"])
+            )
+
+        self.streakNum.config(text=str(user["streak"]))
+
+        barpercent = ((user["xp"]%self.xpperlevel)/self.xpperlevel)*100
+        self.xpbar["value"] = barpercent
+
+        self.welcome.config(text=f"Welcome, {user['username']}")
+
+        if user["xp"] == 0:
+            self.level.configure(text=1)
+        else:
+            self.userLvl = user["xp"]//self.xpperlevel
+            self.level.configure(text=self.userLvl)
+        
+        self.homeImage = tk.PhotoImage(file=r"C:\Users\Fin\Desktop\NEA Python Code\home-icon-silhouette.png")
+        self.homeImage = self.homeImage.subsample(6, 6)
+        self.home.config(image = self.homeImage)
+
+        self.quizImage = tk.PhotoImage(file=r"C:\Users\Fin\Desktop\NEA Python Code\quiz.png")
+        self.quizImage = self.quizImage.subsample(6, 6)
+        self.quiz.config(image = self.quizImage)
+
+        self.assignmentImage = tk.PhotoImage(file=r"C:\Users\Fin\Desktop\NEA Python Code\approve.png")
+        self.assignmentImage = self.assignmentImage.subsample(6, 6)
+        self.assignment.config(image = self.assignmentImage)
+        
+        self.streakIconImage = tk.PhotoImage(file="FireIcon.png")
+        self.streakIconImage = self.streakIconImage.subsample(10,10)
+        self.streakIcon.config(image = self.streakIconImage)
+   
+        self.statisticsImage = tk.PhotoImage(file=r"C:\Users\Fin\Desktop\NEA Python Code\analytics.png")
+        self.statisticsImage = self.statisticsImage.subsample(6,6)
+        self.statistics.config(image = self.statisticsImage)
+
+
+class HomePage(AppFeatures):
+    #Home Page
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, controller, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
+
+        self.reminder = tk.Label(self,text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.reminder.place(x=280,y=200, anchor = "center")
+        
+    def update_user_info(self):
+        super().update_user_info()
+
+        tomorrow = (datetime.now() + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        timeremaining = tomorrow - datetime.now()
+        hours = timeremaining.seconds // 3600
+        minutes = (timeremaining.seconds % 3600) // 60
+
+        self.reminder.config(text=f"You have {hours} hours and {minutes} minutes \n left to extend your streak! Do a quiz to extend your streak!")
+
+
+class QuizPage(AppFeatures):
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, controller, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
+
+        self.createQuiz = tk.Button(self, text="Create Quiz", width=30, command = lambda: controller.PageSwitch("CreateQuiz"))
+        self.createQuiz.place(x=180,y=200)
+
+
+    def update_user_info(self):
+        super().update_user_info()
+
+class CreateQuiz(AppFeatures):
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, controller, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
+
+        self.chooseTopics = tk.Label(self, text="Choose your topics:", bg="#B4E5A2", font=("Helvetica", 14))
+        self.chooseTopics.place(x=80,y=180)
+
+        self.Multiplication = tk.BooleanVar()
+        self.Determinant = tk.BooleanVar()
+        self.Inverse = tk.BooleanVar()
+        self.Transformations = tk.BooleanVar()
+        self.SimultaneousEquations = tk.BooleanVar()
+        self.ThreeDTransformations = tk.BooleanVar()
+
+        self.cbMultiplication = tk.Checkbutton(self, text="Matrix Multiplication", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Multiplication)
+        self.cbDeterminant = tk.Checkbutton(self, text="The Determinant", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Determinant)
+        self.cbInverse = tk.Checkbutton(self, text="Inverse Matrices", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Inverse)
+        self.cbTransformations = tk.Checkbutton(self, text="Matrix Transformations", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Transformations)
+        self.cbSimultaneousEquations = tk.Checkbutton(self, text="Solving simultaneous equations with matrices", bg="#B4E5A2", font=("Helvetica", 14), variable=self.SimultaneousEquations)
+        self.cbThreeDTransformations = tk.Checkbutton(self, text="3D Matrix Transformations", bg="#B4E5A2", font=("Helvetica", 14), variable=self.ThreeDTransformations)
+
+        self.checkboxes = [
+                self.cbMultiplication,
+                self.cbDeterminant,
+                self.cbInverse,
+                self.cbTransformations,
+                self.cbSimultaneousEquations,
+                self.cbThreeDTransformations
+                ]
+
+        self.start = 220
+        self.gap = 30
+
+        for i, cb in enumerate(self.checkboxes):
+            cb.place(x=80, y=self.start + i*self.gap)
+
+        self.QAmount = tk.Label(self, text="Enter how many questions you want on your practice test.", bg="#B4E5A2", font=("Helvetica", 14))
+        self.QAmount.place(x=80,y=400)
+
+        self.Qs = tk.StringVar()
+        self.ValidQs = False
+        self.QsEntry = tk.Entry(self,textvariable=self.Qs)
+        self.QsEntry.place(x=80,y=430)
+
+        self.createQuiz = tk.Button(self, text="Create Quiz", command=lambda:self.createQuestionSheet())
+        self.createQuiz.place(x=80, y=480)
+        
+    def createQuestionSheet(self):
+        self.InvalidQEntry = tk.Label(self, text="Invalid Question Amount.", bg="#B4E5A2", font=("Helvetica", 14), fg="red")
+        try:
+            self.QsNum = int(self.Qs.get())
+            if self.QsNum < 100 and self.QsNum >= 10:
+                self.ValidQs = True
+            else:
+                self.InvalidQEntry.place(x=80,y=460)
+        except:
+            self.InvalidQEntry.place(x=80,y=460) 
+
+        selected_topics = []
+        if self.Multiplication.get(): 
+            selected_topics.append("Multiplication")
+        if self.Determinant.get(): 
+            selected_topics.append("Determinant")
+        if self.Inverse.get(): 
+            selected_topics.append("Inverse")
+        if self.Transformations.get(): 
+            selected_topics.append("Transformations")
+        if self.SimultaneousEquations.get(): 
+            selected_topics.append("Simultaneous Equations")
+        if self.ThreeDTransformations.get(): 
+            selected_topics.append("3D Transformations")
+
+        if not selected_topics:
+            self.InvalidQEntry.config(text="Please select at least one topic.")
+            self.InvalidQEntry.place(x=80, y=460)
+
+        self.Questions = {}
+        for x in range(1,self.QsNum+1):
+            self.qframe = Question(self.master, self.controller)
+            self.qframe.updateQuestionInfo("Tester", "1","2","3","4",x,3)
+            self.controller.frames[f"Q{x}"] = self.qframe
+            self.qframe.grid(row=0, column=0, sticky="nsew")
+
+
+        self.controller.PageSwitch("Q1")
+        
+
+
+
+    def update_user_info(self):
+        super().update_user_info()   
+
+
+class Question(AppFeatures):
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, controller, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")  
+
+        self.QuestionNum = None
+
+        self.QuestionNumLine = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.QuestionNumLine.place(x=80,y=200)
+
+        self.optionOne = tk.Button(self, text="", command=lambda:self.checkAnswer(1))
+        self.optionOne.place(x=100, y=450, width=200, height=80)
+
+        self.optionTwo = tk.Button(self, text="", command=lambda:self.checkAnswer(2))
+        self.optionTwo.place(x=320, y=450, width=200, height=80)
+
+        self.optionThree = tk.Button(self, text="", command=lambda:self.checkAnswer(3))
+        self.optionThree.place(x=100, y=550, width=200, height=80)
+
+        self.optionFour = tk.Button(self, text="", command=lambda:self.checkAnswer(4))
+        self.optionFour.place(x=320, y=550, width=200, height=80)
+
+    def updateQuestionInfo(self, Q, Opt1, Opt2, Opt3, Opt4, QNum, Ans):
+        self.QuestionNumLine.config(text=f"Question {QNum}: {Q}")
+        self.ans = Ans
+        self.qNum = QNum
+
+        self.optionOne.config(text=Opt1)
+        self.optionTwo.config(text=Opt2)
+        self.optionThree.config(text=Opt3)
+        self.optionFour.config(text=Opt4)
+    
+    def checkAnswer(self, choice):
+        if choice != self.ans:
+            self.incorrect = tk.Label(self, text=f"Incorrect. Correct Answer was option {self.ans}", bg="#B4E5A2", font=("Helvetica", 14),fg="red")
+            self.incorrect.place(x=80, y=560)
+        else:
+            self.correct = tk.Label(self, text=f"Correct!", bg="#B4E5A2", font=("Helvetica", 14),fg="green")
+            self.correct.place(x=80, y=560)
+
+        self.optionOne.config(state="disabled")
+        self.optionTwo.config(state="disabled")
+        self.optionThree.config(state="disabled")
+        self.optionFour.config(state="disabled")
+
+        self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch(f"Q{self.qNum + 1}"))
+        self.nextQuestion.place(x=80,y=600)
+        
+    def update_user_info(self):
+        super().update_user_info()   
+        self.home.config(command=lambda:self.areYouSure("HomePage"))
+        self.quiz.config(command=lambda:self.areYouSure("QuizPage"))
+        self.assignment.config(command=lambda:self.areYouSure())
+        self.statistics.config(command=lambda:self.areYouSure())
+    
+    def areYouSure(self, page):
+        self.answer = messagebox.askyesno("I'm Sure","Are you srue you want to switch tabs? The currect quiz you are doing wont save.")
+        if self.answer:
+            self.controller.PageSwitch(page)
+
+
+
+
+class reviewQuiz(AppFeatures):
+    def __init__(self, parent, controller, *args, **kwargs):
+            super().__init__(parent, controller, *args, **kwargs)
+            self.controller = controller
+            self.configure(bg = "#B4E5A2")
+
+    def update_user_info(self):
+        super().update_user_info()   
+
+
+
+if __name__ == "__main__":
+    app = Windows()
+    app.mainloop()
