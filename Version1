@@ -8,6 +8,7 @@ import re
 import bcrypt
 import time
 from datetime import datetime, date, timedelta
+import random
 
 conn = sqlite3.connect('studytracker.db')
 cursor = conn.cursor()
@@ -63,7 +64,7 @@ class Windows(tk.Tk):
     #Switch Pages
     def PageSwitch(self, Page):
         if Page != "LoginPage" and Page != "SignUpPage":
-                self.frames[Page].update_user_info()
+                self.frames[Page].updateUserInfo()
         frame = self.frames[Page]
         frame.tkraise()
    
@@ -129,7 +130,7 @@ class LoginPage(tk.Frame):
                             "lastLogin": user_data[7],
                             "xp": user_data[8]
                             } #Save user details so they can be used in the app pages
-                        controller.frames["HomePage"].update_user_info()
+                        controller.frames["HomePage"].updateUserInfo()
                         controller.PageSwitch("HomePage")
             except Exception as e:
                 invalidUserorPass = tk.Label(self, text = "Invalid Username or Password.", font=("Helvetica", 12), bg = "#B4E5A2", fg="red")
@@ -316,7 +317,7 @@ class AppFeatures(tk.Frame):
                               highlightthickness=0)
         self.statistics.place(x=440,y=670)
 
-    def update_user_info(self):
+    def updateUserInfo(self):
         user = self.controller._currentUser
 
         if user is None:
@@ -380,8 +381,8 @@ class HomePage(AppFeatures):
         self.reminder = tk.Label(self,text="", bg="#B4E5A2", font=("Helvetica", 14))
         self.reminder.place(x=280,y=200, anchor = "center")
         
-    def update_user_info(self):
-        super().update_user_info()
+    def updateUserInfo(self):
+        super().updateUserInfo()
 
         tomorrow = (datetime.now() + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         timeremaining = tomorrow - datetime.now()
@@ -401,8 +402,8 @@ class QuizPage(AppFeatures):
         self.createQuiz.place(x=180,y=200)
 
 
-    def update_user_info(self):
-        super().update_user_info()
+    def updateUserInfo(self):
+        super().updateUserInfo()
 
 class CreateQuiz(AppFeatures):
     def __init__(self, parent, controller, *args, **kwargs):
@@ -452,7 +453,38 @@ class CreateQuiz(AppFeatures):
 
         self.createQuiz = tk.Button(self, text="Create Quiz", command=lambda:self.createQuestionSheet())
         self.createQuiz.place(x=80, y=480)
+    
+    def matrixMultiplication(self, qNum):
+        self.matrix1 = [[random.randint(0,9),random.randint(0,9)],[random.randint(0,9),random.randint(0,9)]]
+        self.matrix2 = [[random.randint(0,9),random.randint(0,9)],[random.randint(0,9),random.randint(0,9)]]
+
+        self.questionFormat = f"⎡ {self.matrix1[0][0]}     {self.matrix1[0][1]} ⎤⎡ {self.matrix2[0][0]}     {self.matrix2[0][1]} ⎤\n⎣ {self.matrix1[1][0]}     {self.matrix1[1][1]} ⎦⎣ {self.matrix2[1][0]}     {self.matrix2[1][1]} ⎦"
+
+        self.topLeft = (self.matrix1[0][0]*self.matrix2[0][0])+(self.matrix1[0][1]*self.matrix2[1][0])
+        self.topRight = (self.matrix1[0][0]*self.matrix2[0][1])+(self.matrix1[0][1]*self.matrix2[1][1])
+        self.bottomLeft = (self.matrix1[1][0]*self.matrix2[0][0])+(self.matrix1[1][1]*self.matrix2[1][0])
+        self.bottomRight = (self.matrix1[1][0]*self.matrix2[0][1])+(self.matrix1[1][1]*self.matrix2[1][1])
+
+        self.answer = f"{self.topLeft}     {self.topRight}\n\n{self.bottomLeft}     {self.bottomRight}"
+
+        self.answers = []
+        self.answerIn = False
+        self.answerSpot = None
+        for x in range(0,5):
+            decide = random.randint(0,1)
+            if decide == 0 and self.answerIn == False:
+                self.answers.append(self.answer)
+                self.answerIn = True
+                self.answerSpot = x + 1
+            else:
+                self.answers.append(f"{random.randint(self.topLeft-5,self.topLeft+5)}     {random.randint(self.topRight-5,self.topRight+5)}\n\n{random.randint(self.bottomLeft-5,self.bottomLeft+5)}     {random.randint(self.bottomRight-5,self.bottomRight+5)}")
         
+        return f"Solve this Matrix multiplication:\n\n{self.questionFormat}", self.answers[0], self.answers[1], self.answers[2], self.answers[3], qNum, self.answerSpot
+
+        
+        
+
+
     def createQuestionSheet(self):
         self.InvalidQEntry = tk.Label(self, text="Invalid Question Amount.", bg="#B4E5A2", font=("Helvetica", 14), fg="red")
         try:
@@ -464,28 +496,32 @@ class CreateQuiz(AppFeatures):
         except:
             self.InvalidQEntry.place(x=80,y=460) 
 
-        selected_topics = []
+        selectedTopics = []
         if self.Multiplication.get(): 
-            selected_topics.append("Multiplication")
+            selectedTopics.append("Multiplication")
         if self.Determinant.get(): 
-            selected_topics.append("Determinant")
+            selectedTopics.append("Determinant")
         if self.Inverse.get(): 
-            selected_topics.append("Inverse")
+            selectedTopics.append("Inverse")
         if self.Transformations.get(): 
-            selected_topics.append("Transformations")
+            selectedTopics.append("Transformations")
         if self.SimultaneousEquations.get(): 
-            selected_topics.append("Simultaneous Equations")
+            selectedTopics.append("Simultaneous Equations")
         if self.ThreeDTransformations.get(): 
-            selected_topics.append("3D Transformations")
+            selectedTopics.append("3D Transformations")
 
-        if not selected_topics:
+        if not selectedTopics:
             self.InvalidQEntry.config(text="Please select at least one topic.")
             self.InvalidQEntry.place(x=80, y=460)
 
         self.Questions = {}
         for x in range(1,self.QsNum+1):
+            randTopic = selectedTopics[random.randint(0,len(selectedTopics)-1)]
+            self.params = []
+            if randTopic == "Multiplication":
+                self.params = self.matrixMultiplication(x)
             self.qframe = Question(self.master, self.controller)
-            self.qframe.updateQuestionInfo("Tester", "1","2","3","4",x,3)
+            self.qframe.updateQuestionInfo(self.params[0],self.params[1],self.params[2],self.params[3],self.params[4],self.params[5],self.params[6])
             self.controller.frames[f"Q{x}"] = self.qframe
             self.qframe.grid(row=0, column=0, sticky="nsew")
 
@@ -495,8 +531,8 @@ class CreateQuiz(AppFeatures):
 
 
 
-    def update_user_info(self):
-        super().update_user_info()   
+    def updateUserInfo(self):
+        super().updateUserInfo()   
 
 
 class Question(AppFeatures):
@@ -508,19 +544,19 @@ class Question(AppFeatures):
         self.QuestionNum = None
 
         self.QuestionNumLine = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 14))
-        self.QuestionNumLine.place(x=80,y=200)
+        self.QuestionNumLine.place(x=80,y=150)
 
         self.optionOne = tk.Button(self, text="", command=lambda:self.checkAnswer(1))
-        self.optionOne.place(x=100, y=450, width=200, height=80)
+        self.optionOne.place(x=100, y=350, width=200, height=80)
 
         self.optionTwo = tk.Button(self, text="", command=lambda:self.checkAnswer(2))
-        self.optionTwo.place(x=320, y=450, width=200, height=80)
+        self.optionTwo.place(x=320, y=350, width=200, height=80)
 
         self.optionThree = tk.Button(self, text="", command=lambda:self.checkAnswer(3))
-        self.optionThree.place(x=100, y=550, width=200, height=80)
+        self.optionThree.place(x=100, y=450, width=200, height=80)
 
         self.optionFour = tk.Button(self, text="", command=lambda:self.checkAnswer(4))
-        self.optionFour.place(x=320, y=550, width=200, height=80)
+        self.optionFour.place(x=320, y=450, width=200, height=80)
 
     def updateQuestionInfo(self, Q, Opt1, Opt2, Opt3, Opt4, QNum, Ans):
         self.QuestionNumLine.config(text=f"Question {QNum}: {Q}")
@@ -548,15 +584,15 @@ class Question(AppFeatures):
         self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch(f"Q{self.qNum + 1}"))
         self.nextQuestion.place(x=80,y=600)
         
-    def update_user_info(self):
-        super().update_user_info()   
+    def updateUserInfo(self):
+        super().updateUserInfo()   
         self.home.config(command=lambda:self.areYouSure("HomePage"))
         self.quiz.config(command=lambda:self.areYouSure("QuizPage"))
         self.assignment.config(command=lambda:self.areYouSure())
         self.statistics.config(command=lambda:self.areYouSure())
     
     def areYouSure(self, page):
-        self.answer = messagebox.askyesno("I'm Sure","Are you srue you want to switch tabs? The currect quiz you are doing wont save.")
+        self.answer = messagebox.askyesno("Quit Quiz","Are you sure you want to switch tabs? The currect quiz you are doing won't save.")
         if self.answer:
             self.controller.PageSwitch(page)
 
@@ -565,12 +601,14 @@ class Question(AppFeatures):
 
 class reviewQuiz(AppFeatures):
     def __init__(self, parent, controller, *args, **kwargs):
-            super().__init__(parent, controller, *args, **kwargs)
-            self.controller = controller
-            self.configure(bg = "#B4E5A2")
+        super().__init__(parent, controller, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
 
-    def update_user_info(self):
-        super().update_user_info()   
+        
+
+    def updateUserInfo(self):
+        super().updateUserInfo()   
 
 
 
