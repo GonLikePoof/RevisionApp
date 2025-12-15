@@ -53,7 +53,7 @@ class Windows(tk.Tk):
 
         #Dictionary containing all the apps pages
         self.frames = {}
-        for x in (LoginPage,SignUpPage,HomePage,QuizPage,CreateQuiz):
+        for x in (LoginPage,SignUpPage,HomePage,QuizPage,CreateQuiz,reviewQuiz,Question):
             pageName = x.__name__
             frame = x(container, self)
             self.frames[pageName] = frame
@@ -521,13 +521,13 @@ class CreateQuiz(AppFeatures):
             if randTopic == "Multiplication":
                 self.params = self.matrixMultiplication(x)
             self.qframe = Question(self.master, self.controller)
-            self.qframe.updateQuestionInfo(self.params[0],self.params[1],self.params[2],self.params[3],self.params[4],self.params[5],self.params[6])
+            self.qframe.updateQuestionInfo(self.params[0],self.params[1],self.params[2],self.params[3],self.params[4],self.params[5],self.params[6],self.QsNum)
             self.controller.frames[f"Q{x}"] = self.qframe
             self.qframe.grid(row=0, column=0, sticky="nsew")
 
-
-        self.controller.PageSwitch("Q1")
-        
+        self.startTime = time.time()
+        self.controller.frames["reviewQuiz"].getStartTime(self.startTime)
+        self.controller.PageSwitch("Q1")     
 
 
 
@@ -558,8 +558,9 @@ class Question(AppFeatures):
         self.optionFour = tk.Button(self, text="", command=lambda:self.checkAnswer(4))
         self.optionFour.place(x=320, y=450, width=200, height=80)
 
-    def updateQuestionInfo(self, Q, Opt1, Opt2, Opt3, Opt4, QNum, Ans):
+    def updateQuestionInfo(self, Q, Opt1, Opt2, Opt3, Opt4, QNum, Ans, QsNum):
         self.QuestionNumLine.config(text=f"Question {QNum}: {Q}")
+        self.QsNum = QsNum
         self.ans = Ans
         self.qNum = QNum
 
@@ -581,7 +582,10 @@ class Question(AppFeatures):
         self.optionThree.config(state="disabled")
         self.optionFour.config(state="disabled")
 
-        self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch(f"Q{self.qNum + 1}"))
+        if self.qNum == self.QsNum:
+            self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch("reviewQuiz"))
+        else:
+            self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch(f"Q{self.qNum + 1}"))
         self.nextQuestion.place(x=80,y=600)
         
     def updateUserInfo(self):
@@ -605,7 +609,18 @@ class reviewQuiz(AppFeatures):
         self.controller = controller
         self.configure(bg = "#B4E5A2")
 
+        self.timeTaken = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.timeTaken.place(x=80,y=200)
         
+    def getStartTime(self, startTime):
+        self.startTime = startTime
+        self.timeEnd = time.time()
+        self.elapsedTime = self.timeEnd-self.startTime
+        self.minutes = self.elapsedTime//60
+        self.seconds = self.elapsedTime%60
+        if self.seconds < 10:
+            self.seconds = f"0{self.seconds}"
+        self.timeTaken.config(text=f"You took {self.minutes}:{self.seconds}")
 
     def updateUserInfo(self):
         super().updateUserInfo()   
