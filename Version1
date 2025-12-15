@@ -27,6 +27,19 @@ CREATE TABLE IF NOT EXISTS users (
 )
 ''')
 
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS quiz (
+    quizid INTEGER PRIMARY KEY AUTOINCREMENT,   
+    userid INTEGER NOT NULL,                    
+    score INTEGER DEFAULT 0,                    
+    total_questions INTEGER,                    
+    date_taken TEXT NOT NULL,                   
+    duration INTEGER,                           
+    FOREIGN KEY (userid) REFERENCES users(userid) ON DELETE CASCADE
+)
+''')
+
+
 #Create Main Tkinter Gui
 class Windows(tk.Tk):
     #Define base layer
@@ -38,6 +51,8 @@ class Windows(tk.Tk):
         window_height = 800
 
         self.startTime = None
+        self.correct = 0
+        self.incorrect = 0
 
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
@@ -122,15 +137,15 @@ class LoginPage(tk.Frame):
                     hashpasswbyte = result.encode('utf-8')
 
                     if bcrypt.checkpw(passwbyte, hashpasswbyte):
-                        user_data = cursor.execute("SELECT * FROM users WHERE username = ?", (user,)).fetchone()
+                        userData = cursor.execute("SELECT * FROM users WHERE username = ?", (user,)).fetchone()
                         controller._currentUser = {
-                            "userid": user_data[0],
-                            "username": user_data[1],
-                            "email": user_data[3],
-                            "role": user_data[4],
-                            "streak": user_data[6],
-                            "lastLogin": user_data[7],
-                            "xp": user_data[8]
+                            "userid": userData[0],
+                            "username": userData[1],
+                            "email": userData[3],
+                            "role": userData[4],
+                            "streak": userData[6],
+                            "lastLogin": userData[7],
+                            "xp": userData[8]
                             } #Save user details so they can be used in the app pages
                         controller.frames["HomePage"].updateUserInfo()
                         controller.PageSwitch("HomePage")
@@ -338,7 +353,7 @@ class AppFeatures(tk.Frame):
             "UPDATE users SET streak = ?, last_login = ? WHERE userid = ?",
             (user["streak"], date.today().isoformat(), user["userid"])
             )
-
+            conn.commit()
         self.streakNum.config(text=str(user["streak"]))
 
         barpercent = ((user["xp"]%self.xpperlevel)/self.xpperlevel)*100
@@ -472,9 +487,13 @@ class CreateQuiz(AppFeatures):
         self.answers = []
         self.answerIn = False
         self.answerSpot = None
-        for x in range(0,5):
+        for x in range(0,4):
             decide = random.randint(0,1)
-            if decide == 0 and self.answerIn == False:
+            if x == 3 and self.answerIn == False:
+                self.answers.append(self.answer)
+                self.answerIn = True
+                self.answerSpot = x + 1
+            elif decide == 0 and self.answerIn == False:
                 self.answers.append(self.answer)
                 self.answerIn = True
                 self.answerSpot = x + 1
@@ -528,7 +547,9 @@ class CreateQuiz(AppFeatures):
             self.qframe.grid(row=0, column=0, sticky="nsew")
 
         self.controller.startTime = time.time()
-        self.controller.PageSwitch("Q1")     
+        self.controller.correct = 0
+        self.controller.incorrect = 0
+        self.controller.PageSwitch("Q1")
 
 
 
@@ -572,9 +593,11 @@ class Question(AppFeatures):
     
     def checkAnswer(self, choice):
         if choice != self.ans:
+            self.controller.incorrect += 1
             self.incorrect = tk.Label(self, text=f"Incorrect. Correct Answer was option {self.ans}", bg="#B4E5A2", font=("Helvetica", 14),fg="red")
             self.incorrect.place(x=80, y=560)
         else:
+            self.controller.correct += 1
             self.correct = tk.Label(self, text=f"Correct!", bg="#B4E5A2", font=("Helvetica", 14),fg="green")
             self.correct.place(x=80, y=560)
 
@@ -584,7 +607,7 @@ class Question(AppFeatures):
         self.optionFour.config(state="disabled")
 
         if self.qNum == self.QsNum:
-            self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:(self.controller.frames["reviewQuiz"].getStartTime(self.controller.startTime),self.controller.PageSwitch("reviewQuiz")))
+            self.nextQuestion = tk.Button(self, text="Finish Test", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:(self.controller.frames["reviewQuiz"].score(self.QsNum), self.controller.frames["reviewQuiz"].getStartTime(self.controller.startTime),self.controller.PageSwitch("reviewQuiz"), self.controller.frames["reviewQuiz"].saveQuiz()))
         else:
             self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch(f"Q{self.qNum + 1}"))
         self.nextQuestion.place(x=80,y=600)
@@ -612,7 +635,21 @@ class reviewQuiz(AppFeatures):
 
         self.timeTaken = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 14))
         self.timeTaken.place(x=80,y=200)
-        
+
+        self.amountCorrect = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.amountCorrect.place(x=80, y=240)
+
+        self.percentage = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 14))
+        self.percentage.place(x=80, y=280)
+
+
+    def score(self, questionAmount):
+        self.totalQuestions = questionAmount
+        self.amountCorrect.config(text=f"Your score: {self.controller.correct}/{questionAmount}")
+        self.scorePercentage = int((self.controller.correct/questionAmount)*100)
+        self.percentage.config(text=f"This is {self.scorePercentage}%")
+
+
     def getStartTime(self, startTime):
         self.startTime = startTime
         self.timeEnd = time.time()
@@ -622,6 +659,16 @@ class reviewQuiz(AppFeatures):
         if self.seconds < 10:
             self.seconds = f"0{self.seconds}"
         self.timeTaken.config(text=f"You took {self.minutes}:{self.seconds}")
+    
+    def saveQuiz(self):
+        if self.minutes == 0:
+            self.invalidTest = tk.Label(self, text="This test took you under a minute, so this will \n not count as a test, and so will not \n be saved. ", bg="#B4E5A2", font=("Helvetica", 14), fg = "red")
+            self.invalidTest.place(x=80, y=320)
+        else:
+            cursor.execute('''INSERT INTO quiz (userid, score, total_questions, date_taken, duration)
+                           VALUES (?, ?, ?, ?, ?)''',
+                           (self.controller._currentUser["userid"], self.controller.correct, self.totalQuestions, date.today().isoformat(), int(self.elapsedTime)))
+            conn.commit()
 
     def updateUserInfo(self):
         super().updateUserInfo()   
