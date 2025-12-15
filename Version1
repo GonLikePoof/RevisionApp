@@ -12,7 +12,12 @@ import random
 
 conn = sqlite3.connect('studytracker.db')
 cursor = conn.cursor()
-#Define Account Table
+"""
+Database setup:
+- Defines two tables: users and quiz
+- users: stores account details, streaks, XP
+- quiz: stores quiz results linked to users via foreign key
+"""
 cursor.execute('''
 CREATE TABLE IF NOT EXISTS users (
     userid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -40,9 +45,14 @@ CREATE TABLE IF NOT EXISTS quiz (
 ''')
 
 
-#Create Main Tkinter Gui
 class Windows(tk.Tk):
-    #Define base layer
+    """
+    Main application window:
+    - Inherits from Tkinter.Tk
+    - Sets up the screen sizing, background
+    - Holds references to all frames (pages) in self.frames
+    - Tracks current user and quiz scoring counters
+    """
     def __init__(self,*args,**kwargs):
         super().__init__(*args,**kwargs)
         self.title("BrainStead")
@@ -78,16 +88,24 @@ class Windows(tk.Tk):
 
 
         self.PageSwitch("LoginPage")
-    #Switch Pages
+    """
+    Switches between pages:
+    - Raises the requested frame to the top
+    - Updates user info if not on login/signup, this is to help display the Streak and XP Level
+    """
     def PageSwitch(self, Page):
         if Page != "LoginPage" and Page != "SignUpPage":
                 self.frames[Page].updateUserInfo()
         frame = self.frames[Page]
         frame.tkraise()
    
-#Login Page
 class LoginPage(tk.Frame):
-    #Define and set parent + Controller paremeters
+    """
+    Login Page:
+    - Provides username and password entry spaces
+    - Verifies credentials against database using bcrypt
+    - On success, sets up all the current users data for later use and navigates to HomePage
+    """
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.controller = controller
@@ -123,6 +141,13 @@ class LoginPage(tk.Frame):
         user = self._usernameVar.get()
         passw = self._passwordVar.get()
 
+        """
+            Verifies login credentials:
+            - Fetches hashed password from DB
+            - Compares with bcrypt.checkpw
+            - If valid, loads user data into controller._currentUser for use in homepage
+            - Otherwise shows error message
+        """
         def VerifyLogin():
             user = self._usernameVar.get()
             passw = self._passwordVar.get()
@@ -158,6 +183,14 @@ class LoginPage(tk.Frame):
 
 
 class SignUpPage(tk.Frame):
+    """
+    Sign-Up Page:
+    - Handles account creation with validation
+    - Checks for existing username/email
+    - Validates email format using regex
+    - Checks for goodpassword strength (length, symbol, capital)
+    - Hashes password and inserts new user into the database
+    """
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.controller = controller
@@ -266,6 +299,12 @@ class SignUpPage(tk.Frame):
 
 
 class AppFeatures(tk.Frame):
+    """
+    Shared GUI Features:
+    - Base class inherited by all pages
+    - Displays streak, XP bar, level, and navigation buttons
+    - updateUserInfo() updates streak and XP based on login date and user data
+    """
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.controller = controller
@@ -334,6 +373,12 @@ class AppFeatures(tk.Frame):
                               highlightthickness=0)
         self.statistics.place(x=440,y=670)
 
+    """
+        Updates user information:
+        - Calculates streak based on last login
+        - Updates XP progress bar and level
+        - Loads icons for navigation buttons
+        """
     def updateUserInfo(self):
         user = self.controller._currentUser
 
@@ -389,7 +434,11 @@ class AppFeatures(tk.Frame):
 
 
 class HomePage(AppFeatures):
-    #Home Page
+    """
+    Home Page:
+    - Displays motivational reminder to maintain streak
+    - Calculates time until midnight using datetime
+    """
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, controller, *args, **kwargs)
         self.controller = controller
@@ -397,9 +446,9 @@ class HomePage(AppFeatures):
 
         self.reminder = tk.Label(self,text="", bg="#B4E5A2", font=("Helvetica", 14))
         self.reminder.place(x=280,y=200, anchor = "center")
-        
+
     def updateUserInfo(self):
-        super().updateUserInfo()
+        super().updateUserInfo() #Using superclass to inherit previous method from AppFeatures
 
         tomorrow = (datetime.now() + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
         timeremaining = tomorrow - datetime.now()
@@ -410,6 +459,11 @@ class HomePage(AppFeatures):
 
 
 class QuizPage(AppFeatures):
+    """
+    Quiz Page:
+    - Simple interface with button to start quiz creation
+    - Currently incomplete, will be filled with quiz Search and new features later
+    """
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, controller, *args, **kwargs)
         self.controller = controller
@@ -423,6 +477,11 @@ class QuizPage(AppFeatures):
         super().updateUserInfo()
 
 class CreateQuiz(AppFeatures):
+    """
+        Quiz Creation Page:
+        - Allows users to select topics and number of questions
+        - Validates input and generates quiz dynamically using list operations
+    """
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, controller, *args, **kwargs)
         self.controller = controller
@@ -470,7 +529,13 @@ class CreateQuiz(AppFeatures):
 
         self.createQuiz = tk.Button(self, text="Create Quiz", command=lambda:self.createQuestionSheet())
         self.createQuiz.place(x=80, y=480)
-    
+
+    """
+        Generates a matrix multiplication question:
+        - Randomizes 2x2 matrices
+        - Calculates correct answer
+        - Randomly inserts correct answer among 4 options
+    """
     def matrixMultiplication(self, qNum):
         self.matrix1 = [[random.randint(0,9),random.randint(0,9)],[random.randint(0,9),random.randint(0,9)]]
         self.matrix2 = [[random.randint(0,9),random.randint(0,9)],[random.randint(0,9),random.randint(0,9)]]
@@ -503,9 +568,13 @@ class CreateQuiz(AppFeatures):
         return f"Solve this Matrix multiplication:\n\n{self.questionFormat}", self.answers[0], self.answers[1], self.answers[2], self.answers[3], qNum, self.answerSpot
 
         
-        
-
-
+    """
+        Creates full quiz:
+        - Loops through selected topics
+        - Generates question frames dynamically
+        - Stores them in the main Windows pages
+        - Starts quiz timer and resets score counters
+    """
     def createQuestionSheet(self):
         self.InvalidQEntry = tk.Label(self, text="Invalid Question Amount.", bg="#B4E5A2", font=("Helvetica", 14), fg="red")
         try:
@@ -551,13 +620,17 @@ class CreateQuiz(AppFeatures):
         self.controller.incorrect = 0
         self.controller.PageSwitch("Q1")
 
-
-
     def updateUserInfo(self):
         super().updateUserInfo()   
 
 
 class Question(AppFeatures):
+    """
+        Question Page:
+        - This is an object creation page, which is instantiated to create the pages which can be scrolled through when doing the test
+        - Displays a single quiz question with four answer buttons
+        - Handles answer checking and score updating
+    """
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, controller, *args, **kwargs)
         self.controller = controller
@@ -581,6 +654,12 @@ class Question(AppFeatures):
         self.optionFour.place(x=320, y=450, width=200, height=80)
 
     def updateQuestionInfo(self, Q, Opt1, Opt2, Opt3, Opt4, QNum, Ans, QsNum):
+        """
+        Updates question text and options:
+        - Intakes all the data given from the question sheet creation and displays it
+        - Displays question number and text
+        - Sets button labels to answer options
+        """
         self.QuestionNumLine.config(text=f"Question {QNum}: {Q}")
         self.QsNum = QsNum
         self.ans = Ans
@@ -592,6 +671,13 @@ class Question(AppFeatures):
         self.optionFour.config(text=Opt4)
     
     def checkAnswer(self, choice):
+        """
+        Checks user answer:
+            - Compares choice to correct answer
+            - Updates score counters
+            - Disables buttons after answering
+            - Navigates to next question or reviewQuiz
+        """
         if choice != self.ans:
             self.controller.incorrect += 1
             self.incorrect = tk.Label(self, text=f"Incorrect. Correct Answer was option {self.ans}", bg="#B4E5A2", font=("Helvetica", 14),fg="red")
@@ -614,19 +700,28 @@ class Question(AppFeatures):
         
     def updateUserInfo(self):
         super().updateUserInfo()   
+        #Setting up the buttons to go to areYouSure()
         self.home.config(command=lambda:self.areYouSure("HomePage"))
         self.quiz.config(command=lambda:self.areYouSure("QuizPage"))
         self.assignment.config(command=lambda:self.areYouSure())
         self.statistics.config(command=lambda:self.areYouSure())
     
     def areYouSure(self, page):
+        """
+        User Experience addition for leaving quizzes since it does not save in progress quizzes:
+        -Warns user with another messagebox when trying to click a navigation button during the quiz
+        -If they say no, it returns back tot he normal screen and the user can input into the quiz again
+        """
         self.answer = messagebox.askyesno("Quit Quiz","Are you sure you want to switch tabs? The currect quiz you are doing won't save.")
         if self.answer:
             self.controller.PageSwitch(page)
 
 
 
-
+"""
+Review Quiz Page:
+    - Displays quiz results and saves them to database
+"""
 class reviewQuiz(AppFeatures):
     def __init__(self, parent, controller, *args, **kwargs):
         super().__init__(parent, controller, *args, **kwargs)
@@ -644,6 +739,11 @@ class reviewQuiz(AppFeatures):
 
 
     def score(self, questionAmount):
+        """
+        Calculates and displays score:
+        - Shows correct answers out of total
+        - Calculates percentage
+        """
         self.totalQuestions = questionAmount
         self.amountCorrect.config(text=f"Your score: {self.controller.correct}/{questionAmount}")
         self.scorePercentage = int((self.controller.correct/questionAmount)*100)
@@ -651,6 +751,11 @@ class reviewQuiz(AppFeatures):
 
 
     def getStartTime(self, startTime):
+        """
+        Calculates elapsed time:
+        - Uses startTime and current time
+        - Displays minutes and seconds taken
+        """
         self.startTime = startTime
         self.timeEnd = time.time()
         self.elapsedTime = self.timeEnd-self.startTime
@@ -661,7 +766,12 @@ class reviewQuiz(AppFeatures):
         self.timeTaken.config(text=f"You took {self.minutes}:{self.seconds}")
     
     def saveQuiz(self):
-        if self.minutes == 0:
+        """
+        Saving quiz scores into a relational database:
+        -First checks if test is under a minute long, and rejects saving if it does, this is trying to prevent users from rushing tests
+        -If not, save users data using all data inputted from the quiz, including a unique userid and quizid, creating a link
+        """
+        if self.elapsedTime < 60:
             self.invalidTest = tk.Label(self, text="This test took you under a minute, so this will \n not count as a test, and so will not \n be saved. ", bg="#B4E5A2", font=("Helvetica", 14), fg = "red")
             self.invalidTest.place(x=80, y=320)
         else:
@@ -674,7 +784,7 @@ class reviewQuiz(AppFeatures):
         super().updateUserInfo()   
 
 
-
+#Run the whole codebase
 if __name__ == "__main__":
     app = Windows()
     app.mainloop()
