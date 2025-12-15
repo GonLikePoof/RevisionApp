@@ -37,6 +37,8 @@ class Windows(tk.Tk):
         window_width = 600
         window_height = 800
 
+        self.startTime = None
+
         screen_width = self.winfo_screenwidth()
         screen_height = self.winfo_screenheight()
        
@@ -525,8 +527,7 @@ class CreateQuiz(AppFeatures):
             self.controller.frames[f"Q{x}"] = self.qframe
             self.qframe.grid(row=0, column=0, sticky="nsew")
 
-        self.startTime = time.time()
-        self.controller.frames["reviewQuiz"].getStartTime(self.startTime)
+        self.controller.startTime = time.time()
         self.controller.PageSwitch("Q1")     
 
 
@@ -583,7 +584,7 @@ class Question(AppFeatures):
         self.optionFour.config(state="disabled")
 
         if self.qNum == self.QsNum:
-            self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch("reviewQuiz"))
+            self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:(self.controller.frames["reviewQuiz"].getStartTime(self.controller.startTime),self.controller.PageSwitch("reviewQuiz")))
         else:
             self.nextQuestion = tk.Button(self, text="Next Question", bg="#B4E5A2", font=("Helvetica", 14), command=lambda:self.controller.PageSwitch(f"Q{self.qNum + 1}"))
         self.nextQuestion.place(x=80,y=600)
@@ -616,8 +617,8 @@ class reviewQuiz(AppFeatures):
         self.startTime = startTime
         self.timeEnd = time.time()
         self.elapsedTime = self.timeEnd-self.startTime
-        self.minutes = self.elapsedTime//60
-        self.seconds = self.elapsedTime%60
+        self.minutes = round(self.elapsedTime//60)
+        self.seconds = round(self.elapsedTime%60)
         if self.seconds < 10:
             self.seconds = f"0{self.seconds}"
         self.timeTaken.config(text=f"You took {self.minutes}:{self.seconds}")
