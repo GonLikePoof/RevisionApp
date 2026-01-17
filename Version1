@@ -10,6 +10,8 @@ import time
 from datetime import datetime, date, timedelta
 import random
 import math
+import numpy as np
+from fractions import Fraction
 
 conn = sqlite3.connect('studytracker.db')
 cursor = conn.cursor()
@@ -71,7 +73,7 @@ class Windows(tk.Tk):
 
         #Dictionary containing all the apps pages
         self.frames = {}
-        for x in (LoginPage,SignUpPage,HomePage,QuizPage,CreateQuiz,reviewQuiz,Question):
+        for x in (LoginPage,SignUpPage,HomePage,QuizPage,CreateQuiz,reviewQuiz,Question, StatisticsPage):
             pageName = x.__name__
             frame = x(container, self)
             self.frames[pageName] = frame
@@ -332,7 +334,8 @@ class AppFeatures(tk.Frame):
                               bd=0,
                               activebackground="#B4E5A2",
                               activeforeground="#B4E5A2",
-                              highlightthickness=0)
+                              highlightthickness=0,
+                              command = lambda: controller.PageSwitch("StatisticsPage"))
         self.statistics.place(x=440,y=670)
 
     def updateUserInfo(self):
@@ -436,14 +439,12 @@ class CreateQuiz(AppFeatures):
         self.Inverse = tk.BooleanVar()
         self.Transformations = tk.BooleanVar()
         self.SimultaneousEquations = tk.BooleanVar()
-        self.ThreeDTransformations = tk.BooleanVar()
 
         self.cbMultiplication = tk.Checkbutton(self, text="Matrix Multiplication", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Multiplication)
         self.cbDeterminant = tk.Checkbutton(self, text="The Determinant", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Determinant)
         self.cbInverse = tk.Checkbutton(self, text="Inverse Matrices", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Inverse)
         self.cbTransformations = tk.Checkbutton(self, text="Matrix Transformations", bg="#B4E5A2", font=("Helvetica", 14), variable=self.Transformations)
         self.cbSimultaneousEquations = tk.Checkbutton(self, text="Solving simultaneous equations with matrices", bg="#B4E5A2", font=("Helvetica", 14), variable=self.SimultaneousEquations)
-        self.cbThreeDTransformations = tk.Checkbutton(self, text="3D Matrix Transformations", bg="#B4E5A2", font=("Helvetica", 14), variable=self.ThreeDTransformations)
 
         self.checkboxes = [
                 self.cbMultiplication,
@@ -451,7 +452,6 @@ class CreateQuiz(AppFeatures):
                 self.cbInverse,
                 self.cbTransformations,
                 self.cbSimultaneousEquations,
-                self.cbThreeDTransformations
                 ]
 
         self.start = 220
@@ -510,18 +510,18 @@ class CreateQuiz(AppFeatures):
         self.answer2 = self.matrix[0][1]*self.matrix[1][0] - self.matrix[0][0]*self.matrix[1][1]
         self.answer3 = self.matrix[0][0]*self.matrix[0][1] - self.matrix[1][1]*self.matrix[1][0]
         self.answer4 = random.randint(self.correctDeterminant - 5, self.correctDeterminant + 5)
-        
+       
         self.correctAnswer = f"1\n---\n{self.correctDeterminant}"
 
         self.answers = [f"1\n---\n{self.correctDeterminant}", f" 1\n---\n   {self.answer2}", f" 1\n---\n   {self.answer3}", f" 1\n---\n   {self.answer4}"]
         random.shuffle(self.answers)
         self.answerSpot = self.answers.index(self.correctAnswer) + 1
-        
+       
 
         return f"Find the determinant for this matrix:\n\n{self.questionFormat}", self.answers[0], self.answers[1], self.answers[2], self.answers[3], qNum, self.answerSpot
 
     def inverseMatrix(self, qNum):
-        
+       
         while True:
             self.matrix = [[random.randint(0,9), random.randint(0,9)],[random.randint(0,9), random.randint(0,9)]]
 
@@ -560,7 +560,7 @@ class CreateQuiz(AppFeatures):
 
     def matrixTransformations(self, qNum):
         self.matrix = [[random.randint(0,9),random.randint(0,9)],[random.randint(0,9),random.randint(0,9)]]
-        self.choices = ["Reflect this matrix in the x-axis", "Reflect this matrix in the y-axis", "Rotate the matrix by 60 Degrees"]
+        self.choices = ["Reflect this matrix in the x-axis", "Reflect this matrix in the y-axis", "Rotate the matrix by x Degrees"]
 
         self.choice = random.choice(self.choices)
         self.questionFormat = f"{self.matrix[0][0]}   {self.matrix[0][1]}\n\n{self.matrix[1][0]}   {self.matrix[1][1]}"
@@ -570,13 +570,14 @@ class CreateQuiz(AppFeatures):
         elif self.choice == self.choices[1]:
             self.answerMatrix = [[-(self.matrix[0][0]),-(self.matrix[0][1])], [self.matrix[1][0],self.matrix[1][1]]]
         else:
-            self.angle = math.radians(60)
+            self.angle = math.radians(random.randint(1,179))
+            self.degreeAngle = math.degrees(self.angle)
             a, b = self.matrix[0][0], self.matrix[0][1]
             c, d = self.matrix[1][0], self.matrix[1][1]
             self.answerMatrix = [
                 [round(a*math.cos(self.angle) - c*math.sin(self.angle), 2), round(b*math.cos(self.angle) - d*math.sin(self.angle), 2)],
-                [round(c*math.cos(self.angle) + a*math.sin(self.angle), 2), round(b*math.sin(self.angle) + d*math.cos(self.angle), 2)]]
-
+                [round(a*math.sin(self.angle) + c*math.cos(self.angle), 2), round(b*math.sin(self.angle) + d*math.cos(self.angle), 2)]]
+            self.choice = f"Rotate the matrix by {self.degreeAngle} Degrees"
         self.answer = f"{round(self.answerMatrix[0][0])}   {round(self.answerMatrix[0][1])}\n\n{round(self.answerMatrix[1][0])}   {round(self.answerMatrix[1][1])}"
 
         self.answers = []
@@ -591,8 +592,50 @@ class CreateQuiz(AppFeatures):
 
         return f"{self.choice}:\n\n{self.questionFormat}", self.answers[0], self.answers[1], self.answers[2], self.answers[3], qNum, self.answerSpot
 
+    from fractions import Fraction
 
+    from fractions import Fraction
 
+    def simultaneousEquations(self, qNum):
+
+        while True:
+            self.matrix = [[random.randint(0,9), random.randint(0,9)],
+                        [random.randint(0,9), random.randint(0,9)]]
+
+            self.det = self.matrix[0][0] * self.matrix[1][1] - self.matrix[0][1] * self.matrix[1][0]
+
+            if self.det != 0:
+                break  
+
+        self.rightSide = [random.randint(0,9), random.randint(0,9)]
+
+        self.solution = np.linalg.solve(self.matrix, self.rightSide)
+        
+        xFrac = Fraction(self.solution[0]).limit_denominator()
+        yFrac = Fraction(self.solution[1]).limit_denominator()
+        
+        self.answers = []
+
+        self.questionFormat = (f" ⎡ {self.matrix[0][0]}   {self.matrix[0][1]} ⎤   ⎡ x ⎤     ⎡ {self.rightSide[0]} ⎤\n"
+    f" ⎣ {self.matrix[1][0]}   {self.matrix[1][1]} ⎦ · ⎣ y ⎦ = ⎣ {self.rightSide[1]} ⎦")
+
+        for i in range(0, 3):
+            offsetX = Fraction(random.choice([-1, 1]), random.randint(2, 5))
+            offsetY = Fraction(random.choice([-1, 1]), random.randint(2, 5))
+            
+            wrongX = xFrac + offsetX
+            wrongY = yFrac + offsetY
+            
+            self.answers.append(f"x = {wrongX}\ny = {wrongY}")
+
+        
+        self.solution = f"x = {xFrac}\ny = {yFrac}"
+        self.answers.append(self.solution)
+        random.shuffle(self.answers)
+        self.answerSpot = self.answers.index(self.solution) + 1
+
+        return f"Solve this simultaneous equation using matrices:\n\n{self.questionFormat}", self.answers[0], self.answers[1], self.answers[2], self.answers[3], qNum, self.answerSpot
+    
     def createQuestionSheet(self):
         self.InvalidQEntry = tk.Label(self, text="Invalid Question Amount.", bg="#B4E5A2", font=("Helvetica", 14), fg="red")
         try:
@@ -615,8 +658,6 @@ class CreateQuiz(AppFeatures):
             selectedTopics.append("Transformations")
         if self.SimultaneousEquations.get():
             selectedTopics.append("Simultaneous Equations")
-        if self.ThreeDTransformations.get():
-            selectedTopics.append("3D Transformations")
 
         if not selectedTopics:
             self.InvalidQEntry.config(text="Please select at least one topic.")
@@ -634,6 +675,8 @@ class CreateQuiz(AppFeatures):
                 self.params = self.inverseMatrix(x)
             elif randTopic == "Transformations":
                 self.params = self.matrixTransformations(x)
+            elif randTopic == "Simultaneous Equations":
+                self.params = self.simultaneousEquations(x)
             self.qframe = Question(self.master, self.controller)
             self.qframe.updateQuestionInfo(self.params[0],self.params[1],self.params[2],self.params[3],self.params[4],self.params[5],self.params[6],self.QsNum)
             self.controller.frames[f"Q{x}"] = self.qframe
@@ -765,7 +808,132 @@ class reviewQuiz(AppFeatures):
 
     def updateUserInfo(self):
         super().updateUserInfo()  
+class StatisticsPage(AppFeatures):
 
+    def __init__(self, parent, controller, *args, **kwargs):
+        super().__init__(parent, controller, *args, **kwargs)
+        self.controller = controller
+        self.configure(bg = "#B4E5A2")
+        
+        self.title = tk.Label(self, text="Your Statistics", bg="#B4E5A2", font=("Helvetica", 20, "bold"))
+        self.title.place(x=200, y=120)
+        
+        self.totalQuizzes = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 12))
+        self.totalQuizzes.place(x=80, y=180)
+        
+        self.avgScore = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 12))
+        self.avgScore.place(x=280, y=180)
+        
+        self.bestScore = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 12))
+        self.bestScore.place(x=80, y=210)
+        
+        self.totalTime = tk.Label(self, text="", bg="#B4E5A2", font=("Helvetica", 12))
+        self.totalTime.place(x=280, y=210)
+        
+        self.recentTitle = tk.Label(self, text="Recent Quizzes:", bg="#B4E5A2", font=("Helvetica", 14, "underline"))
+        self.recentTitle.place(x=80, y=250)
+        
+        self.canvas = tk.Canvas(self, bg="white", width=440, height=300, highlightthickness=1, highlightbackground="black")
+        self.canvas.place(x=80, y=280)
+        
+        self.scrollbar = tk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollbar.place(x=520, y=280, height=300)
+        
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        
+        self.recentFrame = tk.Frame(self.canvas, bg="white")
+        self.canvasWindow = self.canvas.create_window((0, 0), window=self.recentFrame, anchor="nw")
+        
+        tk.Label(self.recentFrame, text="Date", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=0, padx=10, pady=5)
+        tk.Label(self.recentFrame, text="Score", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=1, padx=10, pady=5)
+        tk.Label(self.recentFrame, text="Questions", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=2, padx=10, pady=5)
+        tk.Label(self.recentFrame, text="Time", bg="white", font=("Helvetica", 10, "bold")).grid(row=0, column=3, padx=10, pady=5)
+        
+        self.recentLabels = []
+        
+        self.recentFrame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        
+    def updateUserInfo(self):
+        super().updateUserInfo()
+        
+        user = self.controller._currentUser
+        if user is None:
+            return
+            
+        cursor.execute('''
+            SELECT COUNT(*), AVG((score * 100.0) / total_questions), 
+                   MAX((score * 100.0) / total_questions), SUM(duration)
+            FROM quiz 
+            WHERE userid = ?
+        ''', (user["userid"],))
+        
+        stats = cursor.fetchone()
+        
+        if stats[0]:
+            totalQuizzes = stats[0]
+        else:
+            totalQuizzes = 0
+        
+        if stats[1]:
+            avgScore = round(stats[1], 1)
+        else:
+            avgScore = 0
+        
+        if stats[2]:
+            bestScore = round(stats[2], 1)
+        else:
+            bestScore = 0
+        
+        if stats[3]:
+            totalDuration = stats[3]
+        else:
+            totalDuration = 0
+        
+        self.totalQuizzes.config(text=f"Total Quizzes: {totalQuizzes}")
+        self.avgScore.config(text=f"Average Score: {avgScore}%")
+        self.bestScore.config(text=f"Best Score: {bestScore}%")
+        
+        hours = totalDuration // 3600
+        minutes = (totalDuration % 3600) // 60
+        self.totalTime.config(text=f"Total Time: {hours}h {minutes}m")
+        
+        cursor.execute('''
+            SELECT date_taken, score, total_questions, duration
+            FROM quiz
+            WHERE userid = ?
+            ORDER BY date_taken DESC
+        ''', (user["userid"],))
+        
+        recentQuizzes = cursor.fetchall()
+        
+        for label in self.recentLabels:
+            label.destroy()
+        self.recentLabels = []
+        
+        for i, quiz in enumerate(recentQuizzes):
+            dateTaken = quiz[0]
+            score = quiz[1]
+            total = quiz[2]
+            duration = quiz[3]
+            
+            minutes = duration // 60
+            seconds = duration % 60
+            
+            dateLabel = tk.Label(self.recentFrame, text=dateTaken, bg="white", font=("Helvetica", 9))
+            dateLabel.grid(row=i+1, column=0, padx=10, pady=2)
+            self.recentLabels.append(dateLabel)
+            
+            scoreLabel = tk.Label(self.recentFrame, text=f"{score}/{total}", bg="white", font=("Helvetica", 9))
+            scoreLabel.grid(row=i+1, column=1, padx=10, pady=2)
+            self.recentLabels.append(scoreLabel)
+            
+            questionsLabel = tk.Label(self.recentFrame, text=total, bg="white", font=("Helvetica", 9))
+            questionsLabel.grid(row=i+1, column=2, padx=10, pady=2)
+            self.recentLabels.append(questionsLabel)
+            
+            timeLabel = tk.Label(self.recentFrame, text=f"{minutes}:{seconds:02d}", bg="white", font=("Helvetica", 9))
+            timeLabel.grid(row=i+1, column=3, padx=10, pady=2)
+            self.recentLabels.append(timeLabel)
 
 
 if __name__ == "__main__":
